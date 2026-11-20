@@ -1,0 +1,11 @@
+
+{
+  "name": "Focus - Task Manager",
+  "short_name": "Focus",
+  "description": "Your personal task manager and reminder app",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#10131c",
+  "theme_color": "#10131c",
+  "orientation": "portrait"
+}

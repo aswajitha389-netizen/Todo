@@ -1,0 +1,394 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#10131c">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus - Task Manager</title>
+
+<style>
+:root {
+  --bg:#10131c;
+  --card:#1c2230;
+  --text:#fff;
+  --muted:#9ba3b4;
+  --accent:#8175ff;
+}
+body.light {
+  --bg:#f2f3fa;
+  --card:#fff;
+  --text:#171923;
+  --muted:#737989;
+  --accent:#6959e8;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  padding:22px;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,sans-serif;
+  transition:.2s;
+}
+.container {max-width:480px;margin:auto}
+header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin:25px 0;
+}
+h1 {font-size:32px;margin:0}
+p {color:var(--muted)}
+.theme {
+  background:var(--card);
+  color:var(--text);
+  padding:12px;
+  border-radius:10px;
+}
+.card {
+  background:var(--card);
+  padding:18px;
+  border-radius:15px;
+  margin-bottom:20px;
+}
+.stats {
+  display:flex;
+  gap:12px;
+}
+.stats .card {flex:1}
+.stats h2 {color:var(--accent);margin:0}
+.stats p {font-size:13px;margin-bottom:0}
+.progress {
+  height:9px;
+  background:#45485a;
+  border-radius:10px;
+  overflow:hidden;
+  margin-top:12px;
+}
+#bar {
+  height:100%;
+  width:0;
+  background:var(--accent);
+  transition:.3s;
+}
+input,select {
+  width:100%;
+  padding:13px;
+  margin:7px 0;
+  border:0;
+  outline:none;
+  border-radius:9px;
+  background:var(--bg);
+  color:var(--text);
+}
+button {
+  border:0;
+  border-radius:9px;
+  padding:11px;
+  cursor:pointer;
+}
+.add {
+  width:100%;
+  background:var(--accent);
+  color:white;
+  font-weight:bold;
+  margin-top:8px;
+}
+.filters {
+  display:flex;
+  gap:7px;
+  margin-bottom:17px;
+}
+.filters button {
+  flex:1;
+  background:var(--card);
+  color:var(--text);
+}
+.filters button.active {
+  background:var(--accent);
+  color:white;
+}
+.task {
+  display:flex;
+  align-items:center;
+  gap:9px;
+  background:var(--card);
+  padding:14px;
+  border-radius:12px;
+  margin-bottom:10px;
+}
+.task input[type=checkbox] {width:19px}
+.info {flex:1;min-width:0}
+.info strong {overflow-wrap:anywhere}
+.info small {
+  display:block;
+  color:var(--muted);
+  margin-top:7px;
+}
+.done {text-decoration:line-through;color:var(--muted)}
+.actions {display:flex;gap:5px}
+.edit {background:#343b52;color:white}
+.del {background:#482c3a;color:#ff9aa9}
+.priority {font-size:11px;color:var(--muted)}
+.empty {text-align:center;padding:25px;color:var(--muted)}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<header>
+<div>
+<h1>Focus.</h1>
+<p>Plan it. Do it. Complete it.</p>
+</div>
+<button class="theme" onclick="toggleTheme()">☀ / ☾</button>
+</header>
+
+<div class="stats">
+<div class="card">
+<h2 id="total">0</h2>
+<p>Total tasks</p>
+</div>
+<div class="card">
+<h2 id="completed">0</h2>
+<p>Completed</p>
+</div>
+</div>
+
+<div class="card">
+<strong>Daily progress</strong>
+<div class="progress"><div id="bar"></div></div>
+<p id="percentage">0% completed</p>
+</div>
+
+<div class="card">
+<h3 id="formTitle">Add a task</h3>
+<input id="name" placeholder="Enter your task">
+<input id="time" type="datetime-local">
+
+<select id="priority">
+<option value="Normal">Normal priority</option>
+<option value="High">High priority</option>
+<option value="Low">Low priority</option>
+</select>
+
+<button class="add" onclick="saveTask()" id="saveBtn">+ Add Task</button>
+<button class="edit" onclick="cancelEdit()" id="cancelBtn" style="display:none;width:100%;margin-top:7px">Cancel edit</button>
+</div>
+
+<h3>My Tasks</h3>
+
+<div class="filters">
+<button class="active" onclick="filterTasks('All',this)">All</button>
+<button onclick="filterTasks('Today',this)">Today</button>
+<button onclick="filterTasks('Completed',this)">Done</button>
+</div>
+
+<div id="list"></div>
+
+</div>
+
+<script>
+let tasks=JSON.parse(localStorage.getItem("focusTasksV2")||"[]");
+let filter="All";
+let editing=null;
+
+function store(){
+localStorage.setItem("focusTasksV2",JSON.stringify(tasks));
+}
+
+function saveTask(){
+let name=document.getElementById("name").value.trim();
+let time=document.getElementById("time").value;
+let priority=document.getElementById("priority").value;
+
+if(!name){alert("Enter a task first!");return}
+
+if(time && new Date(time).getTime()<=Date.now()){
+alert("Choose a future reminder time!");
+return;
+}
+
+if(editing!==null){
+let task=tasks.find(t=>t.id===editing);
+if(task){
+task.name=name;
+task.time=time;
+task.priority=priority;
+task.notified=false;
+}
+}else{
+tasks.push({
+id:Date.now(),
+name,time,priority,
+done:false,
+notified:false
+});
+}
+
+store();
+cancelEdit();
+render();
+}
+
+function editTask(id){
+let task=tasks.find(t=>t.id===id);
+if(!task)return;
+
+editing=id;
+document.getElementById("name").value=task.name;
+document.getElementById("time").value=task.time;
+document.getElementById("priority").value=task.priority;
+document.getElementById("formTitle").textContent="Edit task";
+document.getElementById("saveBtn").textContent="Save Changes";
+document.getElementById("cancelBtn").style.display="block";
+window.scrollTo({top:0,behavior:"smooth"});
+}
+
+function cancelEdit(){
+editing=null;
+document.getElementById("name").value="";
+document.getElementById("time").value="";
+document.getElementById("priority").value="Normal";
+document.getElementById("formTitle").textContent="Add a task";
+document.getElementById("saveBtn").textContent="+ Add Task";
+document.getElementById("cancelBtn").style.display="none";
+}
+
+function deleteTask(id){
+if(!confirm("Delete this task?"))return;
+tasks=tasks.filter(t=>t.id!==id);
+store();
+render();
+}
+
+function toggleTask(id){
+let task=tasks.find(t=>t.id===id);
+task.done=!task.done;
+store();
+render();
+}
+
+function filterTasks(value,button){
+filter=value;
+document.querySelectorAll(".filters button").forEach(b=>b.classList.remove("active"));
+button.classList.add("active");
+render();
+}
+
+function render(){
+let list=document.getElementById("list");
+list.innerHTML="";
+
+let complete=tasks.filter(t=>t.done).length;
+document.getElementById("total").textContent=tasks.length;
+document.getElementById("completed").textContent=complete;
+
+let percent=tasks.length?Math.round(complete/tasks.length*100):0;
+document.getElementById("bar").style.width=percent+"%";
+document.getElementById("percentage").textContent=percent+"% completed";
+
+let today=new Date().toLocaleDateString();
+
+let visible=tasks.filter(t=>{
+if(filter==="Completed")return t.done;
+if(filter==="Today")return t.time && new Date(t.time).toLocaleDateString()===today;
+return true;
+});
+
+if(!visible.length){
+list.innerHTML='<div class="empty">No tasks here yet ✨</div>';
+return;
+}
+
+visible.forEach(task=>{
+let div=document.createElement("div");
+div.className="task";
+
+let check=document.createElement("input");
+check.type="checkbox";
+check.checked=task.done;
+check.onchange=()=>toggleTask(task.id);
+
+let info=document.createElement("div");
+info.className="info";
+
+let title=document.createElement("strong");
+title.textContent=task.name;
+if(task.done)title.className="done";
+
+let date=document.createElement("small");
+date.textContent=task.time?new Date(task.time).toLocaleString():"No reminder";
+
+let priority=document.createElement("small");
+priority.className="priority";
+priority.textContent=task.priority+" priority";
+
+info.append(title,date,priority);
+
+let actions=document.createElement("div");
+actions.className="actions";
+
+let edit=document.createElement("button");
+edit.className="edit";
+edit.textContent="✎";
+edit.onclick=()=>editTask(task.id);
+
+let del=document.createElement("button");
+del.className="del";
+del.textContent="×";
+del.onclick=()=>deleteTask(task.id);
+
+actions.append(edit,del);
+div.append(check,info,actions);
+list.append(div);
+});
+}
+
+function toggleTheme(){
+document.body.classList.toggle("light");
+localStorage.setItem("focusTheme",
+document.body.classList.contains("light")?"light":"dark");
+}
+
+if(localStorage.getItem("focusTheme")==="light"){
+document.body.classList.add("light");
+}
+
+async function checkReminders(){
+if(!("Notification" in window))return;
+
+if(Notification.permission==="default"){
+await Notification.requestPermission();
+}
+if(Notification.permission!=="granted")return;
+
+let changed=false;
+
+tasks.forEach(task=>{
+if(task.time&&!task.done&&!task.notified&&
+new Date(task.time).getTime()<=Date.now()){
+new Notification("Focus Reminder",{body:task.name});
+task.notified=true;
+changed=true;
+}
+});
+
+if(changed)store();
+}
+
+render();
+checkReminders();
+setInterval(checkReminders,10000);
+  if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./service-worker.js")
+    .then(() => console.log("Focus service worker registered"))
+    .catch(error => console.log(error));
+  }
+</script>
+</body>
+</html>
+
